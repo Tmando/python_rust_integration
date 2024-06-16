@@ -1,0 +1,13 @@
+[package]
+name = "python_rust_integration"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde_json = { version = "*", default-features = true }
+chrono = {version = "*"}
+chrono-tz = {version = "*"}
+
+[dependencies.pyo3]
+version = "*"
+features = ["auto-initialize","chrono","chrono-tz"]
