@@ -141,13 +141,13 @@ pub mod rust_two_python {
     }
 
     pub fn execute_python_function(
-        path_str: impl AsRef<Path>,
+        paths: Vec<String>,
         module_name: String,
         function_name: String,
         args: Value
-    ) -> Value {
+    ) -> Result<Value, Error> {
         Python::with_gil(|py| {
-            let path: String = String::from(path_str.as_ref().as_os_str().to_str().unwrap());
+            let root_dir = std::env::current_dir().unwrap();
             let syspath = py
                 .import_bound("sys")
                 .unwrap()
@@ -155,16 +155,23 @@ pub mod rust_two_python {
                 .unwrap()
                 .downcast_into::<PyList>()
                 .unwrap();
-            syspath.insert(0, &path).unwrap();
+            let mut counter = 0;
+            for i in paths{
+                if i.starts_with("/"){
+                    syspath.insert(counter, &i).unwrap()
+                }else{
+                    syspath.insert(counter, format!("{}/{}",root_dir.to_str().unwrap(),i)).unwrap()
+                }
+                counter+=1;
+            }
             let value_obj = args.as_object().unwrap();
-            let mut kwargs = HashMap::<String, PyObject>::new();
-            kwargs = parse_serde_obj(value_obj.clone(), py);
+            let kwargs = parse_serde_obj(value_obj.clone(), py);
             let module = py.import_bound(module_name.as_str()).unwrap();
             let fun: Py<PyAny> = module.getattr(function_name.as_str()).unwrap().into();
             let res: Py<PyAny> = fun
                 .call_bound(py, (), Some(&kwargs.into_py_dict_bound(py)))
                 .unwrap();
-            return parse_python_output(res, py);
+            return Ok(parse_python_output(res, py));
         })
     }
 }
