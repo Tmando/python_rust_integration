@@ -1,7 +1,7 @@
 pub mod rust_two_python {
     use pyo3::prelude::*;
     use pyo3::types::{ IntoPyDict, PyList };
-    use std::path::Path;
+    use std::fmt::Error;
     use serde_json::{ Value, Map, json };
     use std::collections::{ HashMap, HashSet };
 
@@ -33,23 +33,23 @@ pub mod rust_two_python {
         return input_obj;
     }
     fn parse_serde_obj(input_obj: Map<String, Value>, py: Python<'_>) -> HashMap<String, PyObject> {
-        let mut outputMap = HashMap::<String, PyObject>::new();
+        let mut output_map = HashMap::<String, PyObject>::new();
         for i in input_obj.keys() {
             if input_obj.get(i).unwrap().is_i64() {
                 let num = input_obj.get(i).unwrap().as_i64().unwrap() as i64;
-                outputMap.insert(String::from(i), num.to_object(py));
+                output_map.insert(String::from(i), num.to_object(py));
             } else if input_obj.get(i).unwrap().is_f64() {
                 let num = input_obj.get(i).unwrap().as_f64().unwrap() as f64;
-                outputMap.insert(String::from(i), num.to_object(py));
+                output_map.insert(String::from(i), num.to_object(py));
             } else if input_obj.get(i).unwrap().is_boolean() {
                 println!("Test1");
                 let bool_val = input_obj.get(i).unwrap().as_bool();
-                outputMap.insert(String::from(i), bool_val.to_object(py));
+                output_map.insert(String::from(i), bool_val.to_object(py));
             } else if input_obj.get(i).unwrap().is_string() {
                 let string_val = input_obj.get(i).unwrap().as_str();
-                outputMap.insert(String::from(i), string_val.to_object(py));
+                output_map.insert(String::from(i), string_val.to_object(py));
             } else if input_obj.get(i).unwrap().is_object() {
-                outputMap.insert(
+                output_map.insert(
                     String::from(i),
                     parse_serde_obj(
                         input_obj.get(i).unwrap().as_object().unwrap().clone(),
@@ -58,16 +58,16 @@ pub mod rust_two_python {
                 );
             } else if input_obj.get(i).unwrap().is_null() {
                 let val = input_obj.get(i).unwrap().as_null().to_object(py);
-                outputMap.insert(String::from(i), val);
+                output_map.insert(String::from(i), val);
             } else if input_obj.get(i).unwrap().is_array() {
                 let val = input_obj.get(i).unwrap().as_array().unwrap();
-                outputMap.insert(
+                output_map.insert(
                     String::from(i),
                     parse_serde_array(val.to_vec(), py).to_object(py)
                 );
             }
         }
-        return outputMap;
+        return output_map;
     }
     fn parse_python_output(result: Py<PyAny>, py: Python<'_>) -> Value {
         if let Ok(_bool) = result.downcast_bound::<pyo3::types::PyBool>(py) {
@@ -86,16 +86,16 @@ pub mod rust_two_python {
             let val: HashMap<String, PyObject> = result.extract(py).unwrap();
             let mut output_dict: HashMap<String, Value> = HashMap::new();
             for i in val.keys() {
-                let curPyObj = val.get(i).unwrap().clone();
-                output_dict.insert(i.to_string(), parse_python_output(curPyObj, py));
+                let cur_py_obj = val.get(i).unwrap().clone();
+                output_dict.insert(i.to_string(), parse_python_output(cur_py_obj, py));
             }
             return serde_json::json!(output_dict);
         } else if let Ok(_pylist) = result.downcast_bound::<pyo3::types::PyList>(py) {
             let val: Vec<PyObject> = result.extract(py).unwrap();
             let mut output_vec: Vec<Value> = Vec::new();
             for i in val {
-                let curPyObj = i.clone();
-                output_vec.push(parse_python_output(curPyObj, py));
+                let cur_py_obj = i.clone();
+                output_vec.push(parse_python_output(cur_py_obj, py));
             }
             return serde_json::json!(output_vec);
         } else if let Ok(_pyunicode) = result.downcast_bound::<pyo3::types::PyUnicode>(py) {
@@ -108,8 +108,8 @@ pub mod rust_two_python {
             let val: Vec<PyObject> = result.extract(py).unwrap();
             let mut output_vec: Vec<Value> = Vec::new();
             for i in val {
-                let curPyObj = i.clone();
-                output_vec.push(parse_python_output(curPyObj, py));
+                let cur_py_obj = i.clone();
+                output_vec.push(parse_python_output(cur_py_obj, py));
             }
             return serde_json::json!(output_vec);
         } else if let Ok(_pybytes) = result.downcast_bound::<pyo3::types::PySet>(py) {
@@ -172,7 +172,7 @@ pub mod rust_two_python {
     mod tests {
         // Note this useful idiom: importing names from outer (for mod tests) scope.
         use super::*;
-        use std::{ env };
+        use std::{ env, vec };
 
         #[test]
         fn test_add() {
@@ -180,11 +180,11 @@ pub mod rust_two_python {
             let path_str = path.as_os_str().to_str().unwrap();
             let val = serde_json::from_str(r#"{"x":10,"y":20}"#).unwrap();
             let res = rust_two_python::execute_python_function(
-                path_str,
+                vec![String::from(path.to_str().unwrap())],
                 String::from("test"),
                 String::from("add_num"),
                 val
-            );
+            ).unwrap();
             let result_obj = res.as_object().unwrap();
             assert_eq!(result_obj.get("result").unwrap().as_i64().unwrap(), 30);
         }
@@ -194,11 +194,11 @@ pub mod rust_two_python {
             let path_str = path.as_os_str().to_str().unwrap();
             let val = serde_json::from_str(r#"{"x":10,"y":20}"#).unwrap();
             let res = rust_two_python::execute_python_function(
-                path_str,
+                vec![String::from(path.to_str().unwrap())],
                 String::from("test"),
                 String::from("sub_num"),
                 val
-            );
+            ).unwrap();
             let result_obj = res.as_object().unwrap();
             assert_eq!(result_obj.get("result").unwrap().as_i64().unwrap(), -10);
         }
@@ -209,36 +209,35 @@ pub mod rust_two_python {
             let path_str = path.as_os_str().to_str().unwrap();
             let val = serde_json::from_str(r#"{"x":10,"y":10}"#).unwrap();
             let res = rust_two_python::execute_python_function(
-                path_str,
+                vec![String::from(path.to_str().unwrap())],
                 String::from("test"),
                 String::from("mul_num"),
                 val
-            );
+            ).unwrap();
             let result_obj = res.as_object().unwrap();
             assert_eq!(result_obj.get("result").unwrap().as_i64().unwrap(), 100);
         }
 
         #[test]
         fn test_div() {
-            let path = env::current_dir().unwrap();
+            let path = std::env::current_dir().unwrap();
             let path_str = path.as_os_str().to_str().unwrap();
             let val = serde_json::from_str(r#"{"x":1,"y":2}"#).unwrap();
             let res = rust_two_python::execute_python_function(
-                path_str,
+                vec![String::from(path.to_str().unwrap())],
                 String::from("test"),
                 String::from("div_num"),
                 val
-            );
+            ).unwrap();
             let result_obj = res.as_object().unwrap();
             assert_eq!(result_obj.get("result").unwrap().as_f64().unwrap(), 0.5);
         }
         #[test]
         fn test_write_file() {
-            let path = env::current_dir().unwrap();
-            let path_str = path.as_os_str().to_str().unwrap();
+            let path = std::env::current_dir().unwrap();
             let val = serde_json::from_str(r#"{"test_str":"Hallo Welt"}"#).unwrap();
             let res = rust_two_python::execute_python_function(
-                path_str,
+                vec![String::from(path.to_str().unwrap())],
                 String::from("test"),
                 String::from("write_file"),
                 val
